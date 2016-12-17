@@ -188,6 +188,13 @@ function Tile.smooth(img,params)
     -- Extend colorspace to match total size of first dimension
     for i=4,sz[1] do bgColor[i] = 1 end
 
+    -- Set random seed
+    local gen = torch.Generator()
+    if (seed ~= 0) then torch.manualSeed(gen,seed) end
+
+    -- Create rotation matrix
+    local rot = torch.Tensor(repeats,repeats):fill(rotation)+torch.randn(gen,repeats,repeats)*rotationVar
+
     -- Tile and accumulate
     local xi1 = 1
     local xi2 = 1
@@ -199,8 +206,17 @@ function Tile.smooth(img,params)
         for x=1,repeats do
             xi1 = (x-1)*(w/repeats)+1
             xi2 = xi1+tsz[#tsz]-1
-            out[{{},{yi1,yi2},{xi1,xi2}}]:add(tile)
-            accMask[{{},{yi1,yi2},{xi1,xi2}}]:add(mask)
+
+            -- Rotation check
+            if (rot[y][x] == 0) then
+                -- No rotation
+                out[{{},{yi1,yi2},{xi1,xi2}}]:add(tile)
+                accMask[{{},{yi1,yi2},{xi1,xi2}}]:add(mask)
+            else                
+                -- Pre-computed rotation
+                out[{{},{yi1,yi2},{xi1,xi2}}]:add(image.rotate(tile,rot[y][x]))
+                accMask[{{},{yi1,yi2},{xi1,xi2}}]:add(image.rotate(mask,rot[y][x]))
+            end
         end
     end
 
